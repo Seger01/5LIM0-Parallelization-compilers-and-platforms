@@ -33,7 +33,7 @@ with open(filename, "r", encoding="utf-8") as f:
             continue
         tree = parser.parse(line)
         parsed = ToPythonList().transform(tree)
-        # Now, get the second value (at index 1)
         print(parsed)
+        # printing second value as an example
         print("Second value:", parsed[1])
         print()
