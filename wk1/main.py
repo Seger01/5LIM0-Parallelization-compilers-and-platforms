@@ -51,7 +51,7 @@ expressions = [
     "10 % 3"
 ]
 
-# no transformer
+# no embedded transformer
 parser = Lark(grammar)
 # embedded transformer
 # parser = Lark(grammar, parser="lalr", transformer=Calculate())
@@ -59,8 +59,11 @@ parser = Lark(grammar)
 for expr in expressions:
     # no embedded transformer so calculate now over tree
     tree = parser.parse(expr)
-    print(tree.pretty())
-    result = Calculate().transform(tree)  # apply Calculate using .transform()
+    print(tree)
+    # apply Calculate using .transform() which Calculate inherited from Transform class from lark lib
+    result = Calculate().transform(tree)
+
     # with embedded transformer result is just a float already instead of the tree
     # result = parser.parse(expr)
+
     print(f"{expr} = {result}")
