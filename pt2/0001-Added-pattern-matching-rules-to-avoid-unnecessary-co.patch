@@ -1,0 +1,69 @@
+From 9d092643da642b5c17c82bfbc73f331dec6707bc Mon Sep 17 00:00:00 2001
+From: Seger Sars <s.j.w.sars@student.tue.nl>
+Date: Sat, 14 Feb 2026 19:46:48 +0100
+Subject: [PATCH] Added pattern matching rules to avoid unnecessary compare
+ operation
+
+---
+ lib/Target/AVR/AVRInstrInfo.td |  9 +++++++++
+ test/CodeGen/AVR/nocp.ll       | 28 ++++++++++++++++++++++++++++
+ 2 files changed, 37 insertions(+)
+ create mode 100644 test/CodeGen/AVR/nocp.ll
+
+diff --git a/lib/Target/AVR/AVRInstrInfo.td b/lib/Target/AVR/AVRInstrInfo.td
+index 7d1bfc8d..87d4e84b 100644
+--- a/lib/Target/AVR/AVRInstrInfo.td
++++ b/lib/Target/AVR/AVRInstrInfo.td
+@@ -2026,6 +2026,15 @@ def : Pat<(subc i8:$src, imm:$src2),
+ def : Pat<(subc i16:$src, imm:$src2),
+           (SUBIWRdK i16:$src, imm:$src2)>;
+ 
++// Fix arithmetic operations followed by compare 0 to skip the compare and use
++// the SREG values already present
++def : Pat<(AVRcmp (sub GPR8:$src1, GPR8:$src2), (i8 0)),
++    (SUBRdRr GPR8:$src1, GPR8:$src2)>;
++
++// My attempt at fixing the fact that a subtraction of an immediate for a 16 bit value does not need a compare action afterward
++def : Pat<(AVRcmp (add i16:$src1, imm0_63_neg:$src2), 0),
++    (SBIWRdK i16:$src1, imm0_63_neg:$src2)>;
++
+ // These patterns convert add (x, -imm) to sub (x, imm) since we dont have
+ // any add with imm instructions. Also take care of the adiw/sbiw instructions.
+ def : Pat<(add i16:$src1, imm0_63_neg:$src2),
+diff --git a/test/CodeGen/AVR/nocp.ll b/test/CodeGen/AVR/nocp.ll
+new file mode 100644
+index 00000000..433b0f54
+--- /dev/null
++++ b/test/CodeGen/AVR/nocp.ll
+@@ -0,0 +1,28 @@
++; RUN: llc < %s -march=avr | FileCheck %s
++
++; CHECK-LABEL: @nocmp8
++; CHECK: sub
++; CHECK-NOT: cp
++; CHECK: brne
++define i1 @nocmp8(i8 %a, i8 %b) {
++	%diff = sub i8 %a, %b
++	%cmp = icmp ne i8 %diff, 0
++	ret i1 %cmp
++}
++
++; CHECK-LABEL: @nocmp
++; CHECK: sbiw
++; CHECK-NOT: cp
++; CHECK-NOT: cpc
++; CHECK: brne
++define void @nocmp(i16 %a) {
++entry:
++	br label %l.loop
++	l.loop:
++	%a.phi = phi i16 [ %a, %entry ], [ %a.new, %l.loop ]
++	%a.new = sub i16 %a.phi, 1
++	%cmp = icmp ne i16 %a.new, 0
++	br i1 %cmp, label %l.loop, label %l.end
++	l.end:
++	ret void
++}
+-- 
+2.34.1
+
